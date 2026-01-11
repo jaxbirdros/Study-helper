@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Studyly – Personal Study AI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root{--red:#ef4444;--blue:#2563eb;--black:#0b1020;--bg:#0b1020;--card:#0f172a;--text:#e5e7eb;--muted:#94a3b8}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,#020617,#020617 40%,#020617);color:var(--text)}
+    header{background:linear-gradient(135deg,var(--red),var(--blue));color:#fff;padding:22px;text-align:center}
+    nav{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;background:#020617;padding:10px;border-bottom:1px solid #111827}
+    nav button{border:1px solid #1f2937;border-radius:10px;padding:10px 14px;background:#020617;color:#fff;cursor:pointer}
+    nav button:hover{background:#020617;outline:1px solid var(--blue)}
+    main{max-width:1100px;margin:18px auto;padding:0 14px}
+    section{display:none}
+    section.active{display:block}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+    .card{background:linear-gradient(180deg,#020617,#020617);border-radius:16px;padding:16px;box-shadow:0 10px 24px rgba(0,0,0,.5);border:1px solid #111827}
+    h2{margin-top:0}
+    textarea,input,select{width:100%;padding:10px;border-radius:10px;border:1px solid #1f2937;background:#020617;color:var(--text)}
+    .btn{background:linear-gradient(135deg,var(--red),var(--blue));color:#fff;border:none;border-radius:10px;padding:10px 14px;cursor:pointer}
+    .btn.alt{background:#020617;border:1px solid #1f2937}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    img{max-width:100%;border-radius:12px;border:1px solid #111827}
+    audio{width:100%}
+    .pill{display:inline-block;background:#020617;border:1px solid #1f2937;border-radius:999px;padding:6px 10px;margin:4px 4px 0 0;color:var(--muted)}
+    .mc{margin:10px 0}
+    .mc label{display:block;padding:10px;border:1px solid #1f2937;border-radius:10px;margin:6px 0;cursor:pointer}
+    .ok{color:#22c55e;font-weight:600}
+    .bad{color:#ef4444;font-weight:600}
+    .small{color:var(--muted);font-size:.9rem}
+    .toggle{display:flex;align-items:center;gap:8px}
+  </style>
+</head>
+<body>
+<header>
+  <h1>📚 Studyly (Personal Use)</h1>
+  <p>Red • Blue • Black — offline-first with optional real AI (OpenRouter supported)</p>
+</header>
+<nav>
+  <button onclick="show('dashboard')">Dashboard</button>
+  <button onclick="show('notes')">Notes</button>
+  <button onclick="show('flashcards')">Flashcards</button>
+  <button onclick="show('quiz')">Practice</button>
+  <button onclick="show('media')">Media</button>
+  <button onclick="show('ai')">AI Tutor</button>
+</nav>
+<main>
+  <section id="dashboard" class="active">
+    <div class="grid">
+      <div class="card"><h2>Today</h2><p>Paste notes → flashcards → long MC quizzes.</p><span class="pill">Active recall</span><span class="pill">Spaced review</span></div>
+      <div class="card"><h2>Progress (local)</h2><p id="stats">No data yet.</p></div>
+    </div>
+  </section>
+
+  <section id="notes">
+    <div class="card">
+      <h2>📝 Your Notes</h2>
+      <textarea id="notesText" rows="10" placeholder="Paste your study notes here..."></textarea>
+      <div class="row"><button class="btn" onclick="saveNotes()">Save</button><button class="btn alt" onclick="makeCards()">Make Flashcards</button></div>
+      <p id="notesSaved" class="small"></p>
+    </div>
+  </section>
+
+  <section id="flashcards">
+    <div class="card">
+      <h2>🧠 Flashcards</h2>
+      <p id="cardQ">No cards yet.</p>
+      <div class="row"><button class="btn" onclick="flip()">Flip</button><button class="btn alt" onclick="nextCard()">Next</button></div>
+    </div>
+  </section>
+
+  <section id="quiz">
+    <div class="card">
+      <h2>✍️ Practice Quiz (Multiple Choice)</h2>
+      <p class="pill">Generated from your notes</p>
+      <div class="row"><button class="btn" onclick="genQuiz(5)">Generate 5</button><button class="btn alt" onclick="genQuiz(10)">Generate 10</button></div>
+      <div id="quizWrap"></div>
+      <button class="btn" onclick="submitQuiz()">Submit</button>
+      <p id="quizResult"></p>
+    </div>
+  </section>
+
+  <section id="media">
+    <div class="grid">
+      <div class="card"><h2>🖼️ Images</h2><input type="file" accept="image/*" onchange="loadImg(event)"><img id="imgPrev" /></div>
+      <div class="card"><h2>🎧 Audio</h2><input type="file" accept="audio/*" onchange="loadAud(event)"><audio id="audPrev" controls></audio></div>
+    </div>
+  </section>
+
+  <section id="ai">
+    <div class="card">
+      <h2>🤖 AI Tutor</h2>
+      <div class="toggle">
+        <input type="checkbox" id="useApi"> <label for="useApi">Use real AI (OpenRouter)</label>
+      </div>
+      <p class="small">Offline mode works instantly. External AI requires your OpenRouter API key.</p>
+      <textarea id="ask" placeholder="Ask about your notes (summarize, define, explain)..."></textarea>
+      <input id="apiKey" placeholder="Paste OpenRouter API Key here" />
+      <button class="btn" onclick="tutor()">Ask</button>
+      <p id="reply"></p>
+    </div>
+  </section>
+</main>
+<script>
+  const S=localStorage; let cards=[],i=0,front=true; let quiz=[];
+  function show(id){document.querySelectorAll('section').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active')}
+
+  // NOTES
+  function saveNotes(){S.setItem('notes',notesText.value);notesSaved.textContent='Saved locally.';stats.textContent='Notes saved.'}
+
+  // FLASHCARDS
+  function makeCards(){const t=notesText.value.split(/\n|\./).map(x=>x.trim()).filter(x=>x.length>30);cards=t.map(x=>({q:'Explain: '+x.slice(0,70)+'…',a:x}));S.setItem('cards',JSON.stringify(cards));i=0;front=true;render()}
+  function render(){cardQ.textContent=cards.length?(front?cards[i].q:cards[i].a):'No cards yet.'}
+  function flip(){front=!front;render()}
+  function nextCard(){if(!cards.length)return;front=true;i=(i+1)%cards.length;render()}
+
+  // QUIZ
+  function genQuiz(n){quiz=[];quizWrap.innerHTML='';quizResult.textContent='';const s=notesText.value.split(/\n|\./).map(x=>x.trim()).filter(x=>x.length>40);
+    if(!s.length){quizWrap.innerHTML='<p class="small">Add notes first.</p>';return}
+    for(let k=0;k<Math.min(n,s.length);k++){const correct=s[k];const wrong=s.filter((_,j)=>j!==k).slice(0,5);const opts=shuffle([correct,...wrong]).slice(0,4);
+      quiz.push({q:'Which option best matches your notes?',opts,ans:opts.indexOf(correct)})}
+    quiz.forEach((q,idx)=>{const d=document.createElement('div');d.className='mc';d.innerHTML=`<p><b>Q${idx+1}.</b> ${q.q}</p>`+q.opts.map((o,i)=>`<label><input type="radio" name="q${idx}" value="${i}"> ${o}</label>`).join('');quizWrap.appendChild(d)})}
+  function submitQuiz(){let score=0;quiz.forEach((q,idx)=>{const r=document.querySelector(`input[name=q${idx}]:checked`);if(r&&Number(r.value)===q.ans)score++});quizResult.innerHTML=`<span class="${score/quiz.length>=.7?'ok':'bad'}">Score: ${score}/${quiz.length}</span>`}
+  function shuffle(a){return [...a].sort(()=>Math.random()-.5)}
+
+  // MEDIA
+  function loadImg(e){imgPrev.src=URL.createObjectURL(e.target.files[0])}
+  function loadAud(e){audPrev.src=URL.createObjectURL(e.target.files[0])}
+
+  // AI TUTOR
+  async function tutor(){const q=ask.value.trim();const notes=notesText.value.trim();if(!q){reply.textContent='Ask a question.';return}
+    if(useApi.checked){ const key=apiKey.value.trim(); if(!key){reply.textContent='Add your API key.';return}
+      try{
+        const res=await fetch("https://openrouter.ai/api/v1/chat/completions",{
+          method:"POST",
+          headers:{"Content-Type":"application/json","Authorization":"Bearer "+key,"HTTP-Referer":window.location.origin,"X-Title":"Studyly Personal AI"},
+          body:JSON.stringify({model:"openai/gpt-4o-mini",messages:[{role:"system",content:"You are a helpful study tutor."},{role:"user",content:`Notes:\n${notes}\n\nQuestion:\n${q}`}],temperature:0.3})
+        });
+        const data=await res.json(); reply.textContent=data.choices?.[0]?.message?.content||'No response.'
+      }catch(e){reply.textContent='API error. Check endpoint/key.'}
+    } else {
+      let r='Study tip: test yourself before rereading.';
+      const low=q.toLowerCase();
+      if(!notes){reply.textContent='Add notes so I can reference them.';return}
+      if(low.includes('summar')) r=notes.split(/\n|\./).slice(0,3).join('. ')+'…';
+      else if(low.includes('define')||low.includes('what is')){const keyw=low.replace(/what is|define/g,'').trim();const line=notes.split(/\n|\./).find(l=>l.toLowerCase().includes(keyw));r=line||'I could not find that term.'}
+      reply.textContent=r
+    }
+  }
+
+  // LOAD SAVED
+  if(S.getItem('notes')) notesText.value=S.getItem('notes');
+  if(S.getItem('cards')){cards=JSON.parse(S.getItem('cards'));render()}
+</script>
+</body>
+</html>
